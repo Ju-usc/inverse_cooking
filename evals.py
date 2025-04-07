@@ -1,13 +1,13 @@
-
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import nltk
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from rouge_score import rouge_scorer
+import numpy as np
 
+embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
-
-def compute_top_cosine_similarity(pred_string, reference_strings):
+def compute_top_cosine_similarity(pred_string, reference_strings, reference_embeddings):
     """
     Compute the highest cosine similarity between an input string embedding and a list of string embeddings.
     ex) input_string = "Add 1 cup of rice"
@@ -28,11 +28,9 @@ def compute_top_cosine_similarity(pred_string, reference_strings):
     """
     # Ensure the step_embedding is 2D (batch size 1)
 
-    embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
     pred_sentence_embedding = embedder.encode([pred_string])
 
-    reference_sentence_embeddings = embedder.encode(reference_strings)
     
     if len(pred_sentence_embedding.shape) == 1:
         pred_sentence_embedding = pred_sentence_embedding.reshape(1, -1)
@@ -41,13 +39,16 @@ def compute_top_cosine_similarity(pred_string, reference_strings):
     best_idx = -1
     
     # Compute similarity with each golden step
-    for i, reference_embedding in enumerate(reference_sentence_embeddings):
+    for i, reference_embedding in enumerate(reference_embeddings):
+        # Convert list to numpy array
+        reference_embedding_np = np.array(reference_embedding)
+        
         # Ensure golden embedding is 2D
-        if len(reference_embedding.shape) == 1:
-            reference_embedding = reference_embedding.reshape(1, -1)
+        if len(reference_embedding_np.shape) == 1:
+            reference_embedding_np = reference_embedding_np.reshape(1, -1)
         
         # Compute cosine similarity
-        similarity = cosine_similarity(pred_sentence_embedding, reference_embedding)[0][0]
+        similarity = cosine_similarity(pred_sentence_embedding, reference_embedding_np)[0][0]
         
         # Update if this is the best score so far
         if similarity > best_score:
@@ -137,15 +138,20 @@ def compute_evals(pred_recipe, golden_recipe):
     golden_steps_string = " ".join(golden_steps_list)
     # For ingredients, we'll use the list directly for per-item matching.
 
+    golden_steps_embeddings = golden_recipe['instructions_embeddings']
+    golden_ingredients_embeddings = golden_recipe['ingredients_embeddings']
+
+    print("Calculating cosine similarity...")
     # --- Cosine Similarity ---
     cosine_scores = {"steps": [], "ingredients": []}
     for step in pred_steps_list:
-        score, _, _ = compute_top_cosine_similarity(step, golden_steps_list)
+        score, _, _ = compute_top_cosine_similarity(step, golden_steps_list, golden_steps_embeddings)
         cosine_scores["steps"].append(score)
     for ingredient in pred_ingredients_list:
-        score, _, _ = compute_top_cosine_similarity(ingredient, golden_ingredients_list)
+        score, _, _ = compute_top_cosine_similarity(ingredient, golden_ingredients_list, golden_ingredients_embeddings)
         cosine_scores["ingredients"].append(score)
 
+    print("Calculating BLEU scores...")
     # --- BLEU Scores ---
     bleu_scores = {"steps": None, "ingredients": None}
     # For steps, use the whole concatenated string.
@@ -159,6 +165,7 @@ def compute_evals(pred_recipe, golden_recipe):
     bleu_scores["steps"] = bleu_steps
     bleu_scores["ingredients"] = bleu_ingredients
 
+    print("Calculating ROUGE scores...")
     # --- ROUGE Scores ---
     rouge_scores = {"steps": {"rouge1": [], "rougeL": []}, "ingredients": {"rouge1": None, "rougeL": None}}
     # For steps, compute ROUGE per step against the whole instructions.
@@ -193,4 +200,5 @@ def compute_evals(pred_recipe, golden_recipe):
             }
         }
     }
+    print("Evaluation metrics calculated.")
     return aggregated

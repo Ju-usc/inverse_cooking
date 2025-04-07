@@ -1,4 +1,5 @@
 from together import Together
+from sentence_transformers import SentenceTransformer
 import base64
 import re
 from dotenv import load_dotenv
@@ -9,7 +10,7 @@ import copy
 # Load environment variables from .env file
 load_dotenv()
 
-
+embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
 def generate_response(messages, max_tokens=1000, temperature=0.7):
     # Access the API key from environment variables
@@ -108,6 +109,32 @@ def display_recipe(recipe_dict):
     for i, step in enumerate(recipe_dict['steps'], 1):
         print(f"  {i}. {step}")
 
+def prase_ingridients_to_embeddings(ingredients_list):
+    """
+    Vectorize ingredients. To caclucalte the cosine similarity later.
+    """
+    if not ingredients_list:
+        return []
+    
+    embeddings = []
+    for ingredient in ingredients_list:
+        embedding = embedder.encode(ingredient)
+        embeddings.append(embedding)
+    return embeddings
+    
+def parse_instructions_to_embeddings(instructions_list):
+    """
+    Vectorize instructions. To caclucalte the cosine similarity later.
+    """
+    if not instructions_list:
+        return []
+    
+    embeddings = []
+    for instruction in instructions_list:
+        embedding = embedder.encode(instruction)
+        embeddings.append(embedding)
+    return embeddings
+
 def parse_instructions(instructions_text):
     """
     Parse instructions text into a list of individual instruction steps.
@@ -199,7 +226,11 @@ def preprocess_dataset(hf_dataset):
             example['base64_image'] = encode_image(example['full_image_path'])
         else:
             example['base64_image'] = None # Add None if key missing
-            
+        
+        # Vectorize ingredients and instructions
+        example['ingredients_embeddings'] = prase_ingridients_to_embeddings(example['parsed_ingredients'])
+        example['instructions_embeddings'] = parse_instructions_to_embeddings(example['instruction_steps'])
+        
         return example
 
     print(f"Preprocessing dataset with {len(hf_dataset)} examples...")
