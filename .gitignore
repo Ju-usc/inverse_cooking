@@ -1,0 +1,13 @@
+# Environment variables
+.env
+
+# Architecture document
+architecture.md
+
+# Conda environment directory
+.conda/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class 
