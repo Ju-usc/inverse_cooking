@@ -244,3 +244,46 @@ def preprocess_dataset(hf_dataset):
     print(f"Preprocessing complete. {len(valid_examples)} examples with valid images (filtered out {len(processed_dataset) - len(valid_examples)} examples)")
     return valid_examples
 
+def convert_recipe_to_xml(recipe_entry):
+    """
+    Convert a recipe dataset entry to XML format that matches LLM output.
+    
+    Args:
+        recipe_entry: A dictionary-like object containing recipe data
+        
+    Returns:
+        str: XML formatted recipe
+    """
+    # Extract the required fields
+    title = recipe_entry["Title"]
+    ingredients = recipe_entry["parsed_cleaned_ingredients"]
+    steps = recipe_entry["instruction_steps"]
+
+    print("converting to xml ...example:", recipe_entry)
+    
+    # Start building the XML structure
+    xml = [
+        "<recipe>",
+        f"  <title>{title}</title>",
+        "  <ingredients>"
+    ]
+    
+    # Add all ingredients
+    for ingredient in ingredients:
+        xml.append(f"    <ingredient>{ingredient}</ingredient>")
+    
+    xml.append("  </ingredients>")
+    xml.append("  <instructions>")
+    
+    # Add all instruction steps
+    for i, step in enumerate(steps, 1):
+        # Clean any newlines or extra commas in the step text
+        clean_step = step.replace("\n", " ").strip()
+        xml.append(f"    <step>{i}. {clean_step}</step>")
+    
+    xml.append("  </instructions>")
+    xml.append("</recipe>")
+
+    xml_string = "\n".join(xml)
+    
+    return {"xml_recipe": xml_string}
